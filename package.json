@@ -1,0 +1,27 @@
+{
+  "name": "two-factor-auth-mongoose",
+  "version": "1.0.0",
+  "description": "a mongoose plugin to support two-factor anthentication",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zxlwbi199101/two-factor-auth-mongoose.git"
+  },
+  "keywords": [
+    "mongoose",
+    "plugin",
+    "2fa",
+    "two-factor-authentication"
+  ],
+  "author": "zxlwbi199101",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zxlwbi199101/two-factor-auth-mongoose/issues"
+  },
+  "homepage": "https://github.com/zxlwbi199101/two-factor-auth-mongoose#readme"
+}
