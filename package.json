@@ -1,10 +1,12 @@
 {
   "name": "two-factor-auth-mongoose",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "a mongoose plugin to support two-factor anthentication",
   "main": "index.js",
   "dependencies": {},
-  "devDependencies": {},
+  "devDependencies": {
+    "eslint": "^4.2.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

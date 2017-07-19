@@ -4,7 +4,7 @@ that simplifies supporting [2FA](https://en.wikipedia.org/wiki/Multi-factor_auth
 
 ## Installation
 ```bash
-  npm install passport-local-mongoose
+  npm install two-factor-auth-mongoose
 ```
 two-factor-auth-mongoose depends on nothing, but you must install mongoose, because it's a mongoose-plugin.
 
@@ -20,9 +20,6 @@ When you are defining your user schema, plug the two-factor-auth-mongoose and co
 
   const config = {
     field: 'TFA',
-    send: (password, user) => {
-      console.log(`should send to ${user.mobile}: ${password}`);
-    },
     maxAttempts: 5,
     errors: {
       userNotFound: 'sorry, user not found.'
