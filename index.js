@@ -60,7 +60,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
       .then(user => {
         const tfa = user.get(options.field) || {};
 
-        if (Date.now() - tfa.lastRequest < options.minRequestInterval) {
+        if (Date.now() - tfa.lastRequestedAt < options.minRequestInterval) {
           return Promise.reject(errors.requestedTooSoon);
         }
 
@@ -72,7 +72,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
         tfa.salt = crypto.randomBytes(128).toString('hex');
         tfa.hash = crypto.pbkdf2Sync(password, tfa.salt, options.iterate, 128, 'sha512')
           .toString('hex');
-        tfa.lastRequest = Date.now();
+        tfa.lastRequestedAt = Date.now();
         tfa.attempts = 0;
         tfa.lastAttemptedAt = tfa.lastAttemptedAt || 0;
 
@@ -95,7 +95,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
           return Promise.reject(errors.notSet);
         }
 
-        if (Date.now() - tfa.lastRequest > options.expiration) {
+        if (Date.now() - tfa.lastRequestedAt > options.expiration) {
           return Promise.reject(errors.expired);
         }
 
@@ -107,7 +107,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
           return Promise.reject(errors.attemptedTooMany);
         }
 
-        const hash = crypto.pbkdf2Sync(password, tfa.salt, 31, 128, 'sha512').toString('hex');
+        const hash = crypto.pbkdf2Sync(password, tfa.salt, options.iterate, 128, 'sha512').toString('hex');
 
         const setter = {};
         setter[options.field] = tfa;
