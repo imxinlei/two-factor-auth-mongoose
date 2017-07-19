@@ -1,8 +1,8 @@
-var crypto = require('crypto');
+const crypto = require('crypto');
 
 module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
   // set default options
-  var options = Object.assign({
+  const options = Object.assign({
     field: 'TFA',
     iterate: 3,
     passwordLen: 6,
@@ -13,7 +13,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
     backdoorKey: null
   }, optionsParams);
 
-  var errors = Object.assign({
+  const errors = Object.assign({
     dbError: 'Cannot access database',
     userNotFound: 'User not found.',
     notSet: 'Not possible, password not sent.',
@@ -25,7 +25,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
   }, options.errors);
 
   // append schema
-  var schemaFields = {};
+  const schemaFields = {};
   schemaFields[options.field] = {
     hash: { type: String, select: false },
     salt: { type: String, select: false },
@@ -37,11 +37,11 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
 
   // helper functions
   function findUserById (model, _id) {
-    var forceSelect = Object.keys(schemaFields[options.field])
+    const forceSelect = Object.keys(schemaFields[options.field])
       .map(key => `+${options.field}.${key}`)
       .join(' ');
 
-    return model.findOne({ _id: _id })
+    return model.findOne({ _id })
       .select(forceSelect)
       .exec()
       .then(user => {
@@ -54,18 +54,18 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
 
   // append methods
   schema.statics.requestTFA = function (_id) {
-    var self = this;
+    const self = this;
 
     return findUserById(this, _id)
       .then(user => {
-        var tfa = user.get(options.field) || {};
+        const tfa = user.get(options.field) || {};
 
         if (Date.now() - tfa.lastRequest < options.minRequestInterval) {
           return Promise.reject(errors.requestedTooSoon);
         }
 
-        var password = '';
-        for (var i = 0; i < options.passwordLen; i++) {
+        let password = '';
+        for (let i = 0; i < options.passwordLen; i++) {
           password += Math.floor(Math.random() * 10).toString();
         }
 
@@ -76,20 +76,20 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
         tfa.attempts = 0;
         tfa.lastAttemptedAt = tfa.lastAttemptedAt || 0;
 
-        var setter = {};
+        const setter = {};
         setter[options.field] = tfa;
 
-        return self.findOneAndUpdate({ _id: _id }, { $set: setter })
+        return self.findOneAndUpdate({ _id }, { $set: setter })
           .then(() => password)
           .catch(() => Promise.reject(errors.dbError));
       });
   };
   schema.statics.attemptTFA = function (_id, password) {
-    var self = this;
+    const self = this;
 
     return findUserById(this, _id)
       .then(user => {
-        var tfa = user.get(options.field);
+        const tfa = user.get(options.field);
 
         if (!tfa || !tfa.salt || !tfa.hash || !tfa.lastRequest) {
           return Promise.reject(errors.notSet);
@@ -107,9 +107,9 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
           return Promise.reject(errors.attemptedTooMany);
         }
 
-        var hash = crypto.pbkdf2Sync(password, tfa.salt, 31, 128, 'sha512').toString('hex');
+        const hash = crypto.pbkdf2Sync(password, tfa.salt, 31, 128, 'sha512').toString('hex');
 
-        var setter = {};
+        const setter = {};
         setter[options.field] = tfa;
 
         tfa.lastAttemptedAt = Date.now();
@@ -123,12 +123,12 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
         } else {
           tfa.attempts++;
 
-          return self.findOneAndUpdate({ _id: _id }, { $set: setter })
+          return self.findOneAndUpdate({ _id }, { $set: setter })
             .then(() => Promise.reject(errors.incorrect))
             .catch(() => Promise.reject(errors.incorrect));
         }
 
-        return self.findOneAndUpdate({ _id: _id }, { $set: setter });
+        return self.findOneAndUpdate({ _id }, { $set: setter });
       });
   };
   schema.methods.requestTFA = function () {
