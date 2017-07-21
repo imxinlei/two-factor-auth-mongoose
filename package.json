@@ -1,6 +1,6 @@
 {
   "name": "two-factor-auth-mongoose",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "a mongoose plugin to support two-factor anthentication",
   "main": "index.js",
   "dependencies": {},
