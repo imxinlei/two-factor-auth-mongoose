@@ -30,8 +30,8 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
     hash: { type: String, select: false },
     salt: { type: String, select: false },
     attempts: { type: Number, default: 0, select: false },
-    lastAttemptedAtedAt: { type: Date, default: Date.now, select: false },
-    lastRequestedAt: { type: Date, default: Date.now, select: false }
+    lastAttemptedAt: { type: Date, select: false },
+    lastRequestedAt: { type: Date, select: false }
   };
   schema.add(schemaFields);
 
@@ -46,7 +46,7 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
       .exec()
       .then(user => {
         if (!user) {
-          return Promise.reject(errors.userNotFound);
+          throw errors.userNotFound;
         }
         return user;
       });
@@ -60,8 +60,13 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
       .then(user => {
         const tfa = user.get(options.field) || {};
 
-        if (Date.now() - tfa.lastRequestedAt < options.minRequestInterval) {
-          return Promise.reject(errors.requestedTooSoon);
+        const setter = {};
+        setter[options.field] = tfa;
+
+        let error = null;
+
+        if (tfa.lastRequestedAt && Date.now() - tfa.lastRequestedAt < options.minRequestInterval) {
+          error = errors.requestedTooSoon;
         }
 
         let password = '';
@@ -69,66 +74,81 @@ module.exports = function twoFactorAuthMongoose (schema, optionsParams = {}) {
           password += Math.floor(Math.random() * 10).toString();
         }
 
-        tfa.salt = crypto.randomBytes(128).toString('hex');
-        tfa.hash = crypto.pbkdf2Sync(password, tfa.salt, options.iterate, 128, 'sha512')
-          .toString('hex');
-        tfa.lastRequestedAt = Date.now();
-        tfa.attempts = 0;
-        tfa.lastAttemptedAt = tfa.lastAttemptedAt || 0;
-
-        const setter = {};
-        setter[options.field] = tfa;
+        if (!error) {
+          tfa.salt = crypto.randomBytes(128).toString('hex');
+          tfa.hash = crypto.pbkdf2Sync(password, tfa.salt, options.iterate, 128, 'sha512')
+            .toString('hex');
+          tfa.lastRequestedAt = Date.now();
+          tfa.attempts = 0;
+          tfa.lastAttemptedAt = tfa.lastAttemptedAt || 0;
+        } else {
+          tfa.lastRequestedAt = Date.now();
+        }
 
         return self.findOneAndUpdate({ _id }, { $set: setter })
-          .then(() => password)
-          .catch(() => Promise.reject(errors.dbError));
+          .then(() => {
+            if (error) throw error;
+            return password
+          })
+          .catch(() => {
+            if (error) throw error;
+            throw errors.dbError
+          });
       });
   };
+
   schema.statics.attemptTFA = function (_id, password) {
     const self = this;
 
     return findUserById(this, _id)
       .then(user => {
         const tfa = user.get(options.field);
+        let error = null;
+        const setter = { [options.field]: tfa };
 
-        if (!tfa || !tfa.salt || !tfa.hash || !tfa.lastRequest) {
-          return Promise.reject(errors.notSet);
-        }
-
-        if (Date.now() - tfa.lastRequestedAt > options.expiration) {
-          return Promise.reject(errors.expired);
-        }
-
-        if (Date.now() - tfa.lastAttemptedAt < options.minAttemptInterval) {
-          return Promise.reject(errors.attemptedTooSoon);
-        }
-
-        if (options.attempts > options.maxAttempts) {
-          return Promise.reject(errors.attemptedTooMany);
+        if (!tfa || !tfa.salt || !tfa.hash) {
+          error = errors.notSet;
+        } else if (tfa.lastRequestedAt && Date.now() - tfa.lastRequestedAt > options.expiration) {
+          error = errors.expired;
+        } else if (tfa.lastAttemptedAt && Date.now() - tfa.lastAttemptedAt < options.minAttemptInterval) {
+          error = errors.attemptedTooSoon;
+        } else if (tfa.attempts >= options.maxAttempts) {
+          error = errors.attemptedTooMany;
         }
 
         const hash = crypto.pbkdf2Sync(password, tfa.salt, options.iterate, 128, 'sha512').toString('hex');
 
-        const setter = {};
-        setter[options.field] = tfa;
-
         tfa.lastAttemptedAt = Date.now();
-        if (
-          options.backdoorKey && options.backdoorKey === password ||
-          hash === tfa.hash
-        ) {
-          tfa.attempts = 0;
-          tfa.hash = '';
-          tfa.salt = '';
+
+        if (!error) {
+          if (
+            (options.backdoorKey && options.backdoorKey !== password) &&
+            hash !== tfa.hash
+          ) {
+            error = errors.incorrect;
+            tfa.attempts++;
+          } else {
+            tfa.attempts = 0;
+            tfa.hash = '';
+            tfa.salt = '';
+          }
         } else {
           tfa.attempts++;
-
-          return self.findOneAndUpdate({ _id }, { $set: setter })
-            .then(() => Promise.reject(errors.incorrect))
-            .catch(() => Promise.reject(errors.incorrect));
         }
 
-        return self.findOneAndUpdate({ _id }, { $set: setter });
+        return self.findOneAndUpdate({ _id }, { $set: setter })
+          .then((newUser) => {
+            if (error) {
+              throw error;
+            }
+            return newUser;
+          })
+          .catch(() => {
+            if (error) {
+              throw error;
+            }
+            throw errors.dbError;
+          });
       });
   };
   schema.methods.requestTFA = function () {
