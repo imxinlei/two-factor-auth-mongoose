@@ -20,9 +20,22 @@ When you are defining your user schema, plug the two-factor-auth-mongoose and co
 
   const config = {
     field: 'TFA',
-    maxAttempts: 5,
+    iterate: 3,
+    passwordLen: 6,
+    maxAttempts: 10,
+    minAttemptInterval: 1000, // 1s
+    minRequestInterval: 1000, // 1s
+    expiration: 5 * 60 * 1000, // 5min
+    backdoorKey: null
     errors: {
-      userNotFound: 'sorry, user not found.'
+      dbError: 'Cannot access database',
+      userNotFound: 'User not found.',
+      notSet: 'Not possible, password not sent.',
+      incorrect: 'Your auth password is incorrect.',
+      expired: 'Two Factor password expired, please resend.',
+      requestedTooSoon: 'You request too soon. Try again later.',
+      attemptedTooSoon: 'Currently locked. Try again later.',
+      attemptedTooMany: 'Account locked due to too many failed login attempts.'
     }
   };
 
@@ -32,41 +45,66 @@ When you are defining your user schema, plug the two-factor-auth-mongoose and co
   module.exports = mongoose.model('User', User);
 ```
 
-### how to do two-factor-authentication
+### configuration
+```js
+{
+  field: 'TFA', // TFA field in database
+  iterate: 3, // encrypt iteration time
+  passwordLen: 6, // opt length
+  maxAttempts: 10, // how many failed attempts before lock the user
+  minAttemptInterval: 1000, // min interval between two attempts tfa
+  minRequestInterval: 1000, // min interval between two request tfa
+  expiration: 5 * 60 * 1000, // tfa code expired in
+  backdoorKey: null // a backdoor password for debug (null means disabled)
+  errors: {
+    dbError: 'Cannot access database',
+    userNotFound: 'User not found.',
+    notSet: 'Not possible, password not sent.',
+    incorrect: 'Your auth password is incorrect.',
+    expired: 'Two Factor password expired, please resend.',
+    requestedTooSoon: 'You request too soon. Try again later.',
+    attemptedTooSoon: 'Currently locked. Try again later.',
+    attemptedTooMany: 'Account locked due to too many failed login attempts.'
+  }
+}
+```
+
+### api
 
 This plugin applies two instance methods: `requestTFA()` and `attemptTFA(password)` and two static methods: `requestTFA(_id)` and `attemptTFA(_id, password)` to your schema.
 
-#### Request two factor password:
+* Request two factor password:
 ```javascript
   const User = require('./UserSchema');
+  const mongoose = require('mongoose');
+  
+  const Types = mongoose.Types;
+  const _id = Types.ObjectId('59715f11cf910abed39e39dd');
 
   // use instance method
-  const user = await User.findOne({ _id: an ObjectId });
-  await user.requestTFA()
+  const user = await User.findOne({ _id });
+  const code = await user.requestTFA()
     .catch(err => console.log(err));
 
   // user static method
-  const user = await User.requestTFA(an ObjectId);
+  const code = await User.requestTFA(_id)
+    .catch(err => console.log(err));
 ```
 
-#### Attemp two factor password:
+* Attemp two factor password:
 ```javascript
   const User = require('./UserSchema');
+  const mongoose = require('mongoose');
+  
+  const Types = mongoose.Types;
+  const _id = Types.ObjectId('59715f11cf910abed39e39dd');
 
   // use instance method
-  const user = await User.findOne({ _id: an ObjectId });
+  const user = await User.findOne({ _id });
   await user.attemptTFA(password)
     .catch(err => console.log(err));
 
   // user static method
-  const user = await User.attemptTFA(an ObjectId, password);
+  const user = await User.attemptTFA(_id, password)
+    .catch(err => console.log(err));
 ```
-
-### configuration
-TODO
-
-### api
-TODO
-
-## TODO
-Add test case
